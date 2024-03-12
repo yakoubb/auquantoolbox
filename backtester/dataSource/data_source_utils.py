@@ -1,4 +1,3 @@
-
 from bs4 import BeautifulSoup
 from backtester.instrumentUpdates import *
 from backtester.constants import *
