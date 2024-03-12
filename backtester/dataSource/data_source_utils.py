@@ -9,40 +9,30 @@ import requests
 import re
 from time import mktime as mktime
 from itertools import groupby
-def getCookieForYahoo(instrumentId):
-    """Returns a tuple pair of cookie and crumb used in the request"""
-    url = 'https://finance.yahoo.com/quote/%s/history' % (instrumentId)
-    with requests.session():
-        header = {'Connection': 'keep-alive',
-                   'Expires': '-1',
-                   'Upgrade-Insecure-Requests': '1',
-                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) \
-                   AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36'
-                   }
-        website = requests.get(url, headers=header)
-        soup = BeautifulSoup(website.text, 'lxml')
-        crumb = re.findall('"CrumbStore":{"crumb":"(.+?)"}', str(soup))
-    return website.cookies['B'],crumb[0]  # return a tuple of crumb and cookie 
-def downloadFileFromYahoo(startDate, endDate, instrumentId, fileName, event='history'):
+import yfinance as yf
+import csv
+from datetime import datetime
+def downloadFileFromYahoo(startDate, endDate, instrumentId, fileName):
     logInfo('Downloading %s' % fileName)
-    cookie, crumb = getCookieForYahoo(instrumentId)
-    start = int(mktime(startDate.timetuple()))
-    end = int(mktime(endDate.timetuple()))
-    url = 'https://query1.finance.yahoo.com/v7/finance/download/%s?period1=%s&period2=%s&interval=1d&events=%s&crumb=%s' % (instrumentId, start, end, event, crumb)
-    
-    # this is the modification needed
-    with requests.session():
-        header = {'Connection': 'keep-alive',
-                   'Expires': '-1',
-                   'Upgrade-Insecure-Requests': '1',
-                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) \
-                   AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36'
-                   }
-    data = requests.get(url, cookies={'B': cookie}, headers=header)
-    with open(fileName, 'wb') as f:
-        f.write(data.content)
-        return True
-    return False
+
+    # Télécharger les données historiques pour l'instrument donné
+    data = yf.download(instrumentId, start=startDate, end=endDate)
+
+    # Enregistrer les données dans un fichier CSV
+    with open(fileName, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+
+        # Écrire l'en-tête du fichier CSV
+        header = ['Date', 'Open', 'High', 'Low', 'Close', 'Adj Close', 'Volume']
+        writer.writerow(header)
+
+        # Écrire les données dans le fichier CSV
+        for index, row in data.iterrows():
+            rowData = [index.strftime('%Y-%m-%d'), row['Open'], row['High'], row['Low'], row['Close'], row['Adj Close'], row['Volume']]
+            writer.writerow(rowData)
+
+    return True
+
 '''
 Takes list of instruments.
 Outputs them grouped by and sorted by time:
