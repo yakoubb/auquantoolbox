@@ -1,3 +1,5 @@
+
+from bs4 import BeautifulSoup
 from backtester.instrumentUpdates import *
 from backtester.constants import *
 from backtester.logger import *
@@ -7,36 +9,40 @@ import requests
 import re
 from time import mktime as mktime
 from itertools import groupby
-
-
 def getCookieForYahoo(instrumentId):
     """Returns a tuple pair of cookie and crumb used in the request"""
     url = 'https://finance.yahoo.com/quote/%s/history' % (instrumentId)
-    req = requests.get(url)
-    txt = req.content
-    cookie = req.cookies['B']
-    pattern = re.compile('.*"CrumbStore":\{"crumb":"(?P<crumb>[^"]+)"\}')
-
-    for line in txt.splitlines():
-        m = pattern.match(line.decode("utf-8"))
-        if m is not None:
-            crumb = m.groupdict()['crumb']
-            crumb = crumb.replace(u'\\u002F', '/')
-    return cookie, crumb  # return a tuple of crumb and cookie
-
-
+    with requests.session():
+        header = {'Connection': 'keep-alive',
+                   'Expires': '-1',
+                   'Upgrade-Insecure-Requests': '1',
+                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) \
+                   AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36'
+                   }
+        website = requests.get(url, headers=header)
+        soup = BeautifulSoup(website.text, 'lxml')
+        crumb = re.findall('"CrumbStore":{"crumb":"(.+?)"}', str(soup))
+    return website.cookies['B'],crumb[0]  # return a tuple of crumb and cookie 
 def downloadFileFromYahoo(startDate, endDate, instrumentId, fileName, event='history'):
     logInfo('Downloading %s' % fileName)
     cookie, crumb = getCookieForYahoo(instrumentId)
     start = int(mktime(startDate.timetuple()))
     end = int(mktime(endDate.timetuple()))
     url = 'https://query1.finance.yahoo.com/v7/finance/download/%s?period1=%s&period2=%s&interval=1d&events=%s&crumb=%s' % (instrumentId, start, end, event, crumb)
-    data = requests.get(url, cookies={'B': cookie})
+    
+    # this is the modification needed
+    with requests.session():
+        header = {'Connection': 'keep-alive',
+                   'Expires': '-1',
+                   'Upgrade-Insecure-Requests': '1',
+                   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) \
+                   AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.99 Safari/537.36'
+                   }
+    data = requests.get(url, cookies={'B': cookie}, headers=header)
     with open(fileName, 'wb') as f:
         f.write(data.content)
         return True
     return False
-
 '''
 Takes list of instruments.
 Outputs them grouped by and sorted by time:
@@ -56,13 +62,11 @@ def groupAndSortByTimeUpdates(instrumentUpdates):
             instruments.append(sameTimeInstrument)
         groupedInstruments.append([timeOfUpdate, instruments])
     return timeUpdates, groupedInstruments
-
 def getAllTimeStamps(groupedInstrumentUpdates):
     timeUpdates = []
     for timeOfUpdate, instrumentUpdates in groupedInstrumentUpdates:
         timeUpdates.append(timeOfUpdate)
     return timeUpdates
-
 def getMultipliers(self,instrumentId, fileName, downloadId):
         divFile = self.getFileName('div', instrumentId)
         splitFile = self.getFileName('split', instrumentId)
