@@ -203,7 +203,7 @@ class Metrics():
 
 	def annualized_return(self, total_return, total_days):
 		annualized_return = ((1 + total_return) **
-							 (252.0 / np.float(total_days)) - 1)
+							 (252.0 / np.float64(total_days)) - 1)
 
 		return annualized_return
 
